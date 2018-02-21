@@ -8,17 +8,41 @@
             border:1px solid #d3d3d3;
             background-color: #f1f1f1;
         }
+
+        #canvas-container 
+        {
+            /* background-color: #999;
+            padding: 8px;
+            border: 3px solid lightgrey;
+            width: 803px; */
+            margin: auto;
+        } 
+
+         #canvas-div 
+        {
+            /* border:1px solid #d3d3d3;
+            background-color: #f1f1f1; */
+            position: relative;
+        }
+
     </style>
 </head>
-<body onload="startGame()">
+<body onload="loadGame()">
 
 <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
 <script src="StateManager.js"></script>
 <script src="BasicUI.js"></script>
 <script src="MyScript.js"></script>
-<br>
-<button onmousedown="accelerate(-0.2)" onmouseup="accelerate(0.05)">ACCELERATE</button>
-<p>Use Up Arrow button to stay in the air</p>
-<p>How long can you stay alive?</p>
+
+
+<div id="canvas-container">
+    
+    <div id="canvas-div">
+        <canvas id="canvas-game"></canvas>
+    </div>
+
+</div>
+
+
 </body>
 </html>

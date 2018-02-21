@@ -11,17 +11,26 @@ var touchVar = null;
 
 // Design data 
 const MaxForceInAnyDirection = 500;
-const gravity = -200;
-const upArrowPushForce = 500;
+const gravity = -400;
+const upArrowPushForce = 250;
 
 const gapBetweenObstacles = 150;
 const distanceBetweenObstacles = 100;
 const obstacleMovementSpeed = 100;
+const protogonistUpwardForceCoolDownTime = 0.25;
+const protogonistStartPos = { x:30, y:200 };
 
 const totalTime = 120; // seconds
 
-// Main Applicaiton 
-function startGame() 
+const renderWidth = 500;
+const renderHeight = 300;
+
+const scaleUp = 1.5;
+const gameSpeed = 2;
+
+
+// Loads the game up 
+function loadGame() 
 {
     MyApplicationInstance.Initialize();
 
@@ -37,15 +46,16 @@ function startGame()
     MyApplicationInstance.Start();
 }
 
+// My application class which has all important links
 var MyApplicationInstance = 
 {
-    gameWidth : 500,
-    gameHeight : 300,
+    gameWidth : renderWidth,
+    gameHeight : renderHeight,
 
     currentTime : 0,
 
-    GameWidth : function() { return this.gameWidth; },
-    GameHeight : function() { return this.gameHeight; },
+    GameWidth : function() { return renderWidth; },
+    GameHeight : function() { return renderHeight; },
 
     StateManager : new StateManager(),
 
@@ -54,7 +64,7 @@ var MyApplicationInstance =
         this.frameNumber = 0;
         lastUpdate = Date.now();
         
-        this.interval = setInterval(UpdateGameLoop, 0 );
+        this.interval = setInterval(this.UpdateGameLoop, 0 );
     },
     Start : function () 
     {
@@ -65,30 +75,51 @@ var MyApplicationInstance =
             
         this.StateManager.ClearAll();
         this.StateManager.PushState( new InGameState() );
+    },
+
+    // the main update method which updates everything else 
+    UpdateGameLoop: function()
+    {
+        var now = Date.now();
+        dt = now - lastUpdate;
+        dt = dt * gameSpeed;
+        lastUpdate = now;
+
+        renderer.ClearScreen(); // clearing the screen 
+        OnKeyPress(touchVar);   // sending touch events to the game 
+
+        // updating and rendering the states
+        if ( MyApplicationInstance.StateManager != null )
+        {
+            MyApplicationInstance.StateManager.Update();
+            MyApplicationInstance.StateManager.Render();
+        }
     }
 }
+
+
+// A rendering class which takes care of all rendering 
 var renderer = 
 {
     canvas : null,
     context : null, 
     InitializeGraphics : function( width, height ) 
     {
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = width;
-        this.canvas.height = height;
+        this.canvas = document.getElementById("canvas-game"); // Fetching the game canvas from html
+        this.canvas.width = width * scaleUp;    // the window is scaled up based on the scale we set
+        this.canvas.height = height * scaleUp; // the window is scaled up based on the scale we set
         this.context = this.canvas.getContext("2d");
-        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
     },
     ClearScreen : function() 
     {
-        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.context.clearRect(0, 0, this.canvas.width * scaleUp, this.canvas.height * scaleUp);
     },
     RenderBox : function( box, point = null )
     {
         this.context.fillStyle = box.color;
         if ( this.InvertYEnabled() )
         {
-            this.context.fillRect(box.x - box.w/2, this.Height() - ( box.y + box.h/2 ) , box.w, box.h);
+            this.context.fillRect((box.x - box.w/2) * scaleUp, (this.Height() - ( box.y + box.h/2 )) * scaleUp , box.w * scaleUp, box.h * scaleUp);
         }
         else
             this.context.fillRect(box.x - box.w/2, box.y - box.h/2, box.w, box.h);
@@ -98,7 +129,7 @@ var renderer =
         this.context.fillStyle = box.color;
         if ( this.InvertYEnabled() )
         {
-            this.context.fillRect(box.x - box.w/2, this.Height() - ( box.y + box.h/2 ) , box.w, box.h);
+            this.context.fillRect((box.x - box.w/2) * scaleUp, (this.Height() - ( box.y + box.h/2 ) ) * scaleUp, box.w * scaleUp, box.h * scaleUp);
         }
         else
             this.context.fillRect(box.x - box.w/2, box.y - box.h/2, box.w, box.h);
@@ -112,7 +143,7 @@ var renderer =
 
         if ( this.InvertYEnabled() )
         {
-            this.context.fillRect(button.x - button.w/2, this.Height() - ( button.y + button.h/2 ) , button.w, button.h);
+            this.context.fillRect((button.x - button.w/2) * scaleUp, (this.Height() - ( button.y + button.h/2 )) * scaleUp , button.w * scaleUp, button.h * scaleUp);
         }
         else
             this.context.fillRect(button.x - button.w/2, button.y + button.h/2, button.w, button.h);
@@ -122,32 +153,21 @@ var renderer =
 
         if ( this.InvertYEnabled() )
         {
-            this.context.fillText( button.text, button.x, this.Height() - (button.y - button.fontHeightInPX/2) );
+            this.context.fillText( button.text, button.x * scaleUp, (this.Height() - (button.y - button.fontHeightInPX/2)) * scaleUp );
         }
         else
             this.context.fillText( button.text, button.x, (button.y - button.fontHeightInPX/2));
 
         this.context.textAlign="center"; 
     },
-    Width : function () { return this.canvas.width; },
-    Height : function () { return this.canvas.height; },
+    Width : function () { return MyApplicationInstance.GameWidth(); },
+    Height : function () { return MyApplicationInstance.GameHeight(); },
 
     InvertYEnabled : function () { return true; }
 }
 
-// Application Update loop 
-function UpdateGameLoop()
-{
-    var now = Date.now();
-    dt = now - lastUpdate;
-    lastUpdate = now;
 
-    this.renderer.ClearScreen();
-    OnKeyPress(touchVar);
 
-    if ( MyApplicationInstance.StateManager != null )
-        MyApplicationInstance.StateManager.Update();
-};
 
 
 // Main Menu 
@@ -164,8 +184,8 @@ function StartMenuState ()
                                 MyApplicationInstance.GameHeight()/2 , 
                                 200, 50,
 
-                                "30px Verdana", "start",
-                                "white", 15,
+                                (30 * scaleUp) + "px Verdana", "START",
+                                "white", 20,
 
                                 "green", "red", "purple", 
 
@@ -182,6 +202,10 @@ function StartMenuState ()
         
     }
     this.Update = function ()
+    {
+    }
+
+    this.Render = function ()
     {
         this.ui.Render();
     }
@@ -218,22 +242,38 @@ function InGameState ()
     this.Start = function() 
     {
         this.protogonistBox = CreateABox();
-        this.protogonistBox.SetAll ( 20, 250, 30, 30, "red", false );
+        this.protogonistBox.SetAll ( protogonistStartPos.x, protogonistStartPos.y, 30, 30, "red", false );
 
         // Creating UI
         {
             this.ui = new UI();
             this.ui.Init ( true );
 
+            let scoreBG = this.ui.CreateButton ();
+            scoreBG.Init ( MyApplicationInstance.GameWidth() -45, 
+                                    MyApplicationInstance.GameHeight() - 20 , 
+                                    90, 40,
+
+                                    (25 * scaleUp) + "px Verdana", "",
+                                    "black", 15,
+
+                                    "black", "green", "green", 
+
+                                    function() 
+                                    { 
+                                        //no action here. this is intentional
+                                    },
+
+                                    true );
             this.scoreTxt = this.ui.CreateButton ();
-            this.scoreTxt.Init ( MyApplicationInstance.GameWidth() -40, 
-                                    MyApplicationInstance.GameHeight() - 15 , 
-                                    80, 30,
+            this.scoreTxt.Init ( MyApplicationInstance.GameWidth() -45, 
+                                    MyApplicationInstance.GameHeight() - 20 , 
+                                    85, 35,
 
-                                    "15px Verdana", "score : 0",
-                                    "white", 10,
+                                    (25 * scaleUp) + "px Verdana", "0",
+                                    "purple", 17.5,
 
-                                    "green", "green", "green", 
+                                    "yellow", "green", "green", 
 
                                     function() 
                                     { 
@@ -248,8 +288,8 @@ function InGameState ()
                                     MyApplicationInstance.GameHeight()/2 , 
                                     200, 50,
     
-                                    "30px Verdana", "retry",
-                                    "white", 15,
+                                    (30 * scaleUp) + "px Verdana", "RETRY",
+                                    "white", 20,
     
                                     "green", "red", "purple", 
     
@@ -284,10 +324,12 @@ function InGameState ()
                     }
                     
                 }
+                this.protogonistBox.Update();
             }
 
             for( let i = 0; i < this.obstacles.length; i++ )
             {
+                this.obstacles[i].Update();
                 this.obstacles[i].Move ( dt/1000 );
             }
 
@@ -297,18 +339,6 @@ function InGameState ()
             }
         }
 
-        // render 
-        {
-            renderer.RenderBox ( this.protogonistBox );
-            for( let i = 0; i < this.obstacles.length; i++ )
-            {
-                renderer.RenderBox ( this.obstacles[i].aboveObstacle );
-                renderer.RenderBox ( this.obstacles[i].belowObstacle );
-            }
-        }
-
-
-        
         // Create more obstacles if needed
         {
             let doINeedMoreObstacles = false;
@@ -350,7 +380,21 @@ function InGameState ()
             //console.log ( "Obstacle count: " + obstacles.length );
         }
 
-        this.scoreTxt.SetText( "score : " + this.score);
+        this.scoreTxt.SetText( "" + this.score);
+    }
+
+    this.Render = function () 
+    {
+        // render 
+        {
+            renderer.RenderBox ( this.protogonistBox );
+            for( let i = 0; i < this.obstacles.length; i++ )
+            {
+                renderer.RenderBox ( this.obstacles[i].aboveObstacle );
+                renderer.RenderBox ( this.obstacles[i].belowObstacle );
+            }
+        }
+
         this.ui.Render();
     }
 
@@ -422,6 +466,8 @@ function InGameState ()
 
     this.OnMouseDown = function( x, y )
     {
+        if ( this.protogonistBox != null )
+            this.protogonistBox.SetUpwardForce ( upArrowPushForce );
         this.ui.OnMouseDown ( x, y );
     }
     this.OnMouseUp = function( x, y )
@@ -434,7 +480,8 @@ function InGameState ()
         if (keyCode == '38') 
         {
             //console.log("here");
-            this.protogonistBox.IncreaseForce ( upArrowPushForce * dt/1000 );
+            //this.protogonistBox.SetUpwardForce ( upArrowPushForce );
+            //this.protogonistBox.IncreaseForce ( upArrowPushForce * dt/1000 );
         }
         else if (keyCode == '40') {
             // down arrow
@@ -501,7 +548,7 @@ function OnMouseDown(evt)
     if ( MyApplicationInstance.StateManager != null )
         MyApplicationInstance.StateManager.OnMouseDown ( mousePos.x, mousePos.y );
 
-    console.log('OnMouseDown ' + mousePos.x + " " + mousePos.y );
+    //console.log('OnMouseDown ' + mousePos.x + " " + mousePos.y );
 }
 function OnMouseUp(evt) 
 {
@@ -515,7 +562,7 @@ function OnMouseUp(evt)
     if ( MyApplicationInstance.StateManager != null )
         MyApplicationInstance.StateManager.OnMouseUp ( mousePos.x, mousePos.y );
 
-    console.log('OnMouseUp ' + mousePos.x + " " + mousePos.y );
+    //console.log('OnMouseUp ' + mousePos.x + " " + mousePos.y );
 }
 
 //Function to get the mouse position
@@ -523,8 +570,8 @@ function GetMousePosFromCanvas(canvas, event)
 {
     var rect = canvas.getBoundingClientRect();
     return {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
+        x: (event.clientX - rect.left)/scaleUp,
+        y: (event.clientY - rect.top)/scaleUp
     };
 }
 
@@ -559,7 +606,15 @@ function Box ( )
     this.force = 0;
 
     this.SetY = function ( y ) { this.y = y; }
-    this.SetForce = function ( force ) { this.force = force; }
+    this.SetForce = function ( force ) 
+    { 
+        this.force = force; 
+        //console.log(this.force);
+        if ( Math.abs ( this.force ) > this.Maxforce() )
+        {
+            this.force = Math.sign ( this.force ) * this.Maxforce();
+        }
+    }
     this.Maxforce = function () { return MaxForceInAnyDirection; }
 
     this.isKinematic = true;
@@ -580,6 +635,26 @@ function Box ( )
             this.force = Math.sign ( this.force ) * this.Maxforce();
         }
     }
+
+    this.Update  = function ( )
+    {
+        if ( this.upwardForceCooldown > 0 )
+            this.upwardForceCooldown -= dt/1000;
+    }
+
+    this.SetUpwardForce = function ( force ) 
+    { 
+        if ( this.upwardForceCooldown > 0 )
+            return;
+
+        console.log("SetUpwardForce " + this.upwardForceCooldown )
+        this.upwardForceCooldown = protogonistUpwardForceCoolDownTime;
+
+        this.SetForce ( force );
+    }
+
+    this.upwardForceCooldown = 0;
+
 }
 
 function Obstacle ( positionX, minGap)
@@ -590,17 +665,22 @@ function Obstacle ( positionX, minGap)
     let gap = getRandomArbitrary ( minGap, minGap /*MyApplicationInstance.GameHeight()*/ );
 
     
-    this.aboveObstacle.w = 10;
+    this.aboveObstacle.w = 20;
     this.aboveObstacle.h = getRandomArbitrary ( 0, MyApplicationInstance.GameHeight() - gap );
     this.aboveObstacle.y = MyApplicationInstance.GameHeight() - ( this.aboveObstacle.h / 2 );
     this.aboveObstacle.x = positionX;
     this.aboveObstacle.color = "grey";
 
-    this.belowObstacle.w = 10;
+    this.belowObstacle.w = 20;
     this.belowObstacle.h = MyApplicationInstance.GameHeight() - gap - this.aboveObstacle.h;
     this.belowObstacle.y = this.belowObstacle.h/2;
     this.belowObstacle.x = positionX;
     this.belowObstacle.color = "grey";
+    this.Update = function () 
+    {
+        this.aboveObstacle.Update ();
+        this.belowObstacle.Update();
+    }
 
     this.Speed = function () { return obstacleMovementSpeed; }
 

@@ -52,6 +52,11 @@ function StateManager ()
         if ( this.CurrentState() != null )
             this.CurrentState().Update ();
     }
+    this.Render  = function ()
+    {
+        if ( this.CurrentState() != null )
+            this.CurrentState().Render ();
+    }
     this.OnMouseDown = function ( x, y )
     {
         if ( this.CurrentState() != null )
