@@ -4,10 +4,6 @@ document.onkeyup = checkUp;
 
 
 
-let lastUpdate = Date.now();
-let dt = 0;
-var touchVar = null;
-
 
 // Design data 
 const MaxForceInAnyDirection = 500;
@@ -27,6 +23,16 @@ const renderHeight = 300;
 
 const scaleUp = 1.5;
 const gameSpeed = 2;
+
+
+
+let lastUpdate = Date.now();
+let dt = 0;
+var touchVar = null;
+let isGamePaused = false;
+
+
+
 
 
 // Loads the game up 
@@ -74,7 +80,7 @@ var MyApplicationInstance =
     {
             
         this.StateManager.ClearAll();
-        this.StateManager.PushState( new InGameState() );
+        this.StateManager.PushState( new StartMenuState() );
     },
 
     // the main update method which updates everything else 
@@ -309,6 +315,9 @@ function InGameState ()
     }
     this.Update = function ()
     {
+        if ( isGamePaused )
+            return;
+
         // update 
         if ( !this.gameOver )
         {
@@ -477,7 +486,16 @@ function InGameState ()
     
     this.OnKeyPress = function ( keyCode )
     {
-        if (keyCode == '38') 
+        // space
+        if (keyCode == '32') 
+        {
+            //console.log("here");
+            isGamePaused = !isGamePaused;
+
+            //this.protogonistBox.SetUpwardForce ( upArrowPushForce );
+            //this.protogonistBox.IncreaseForce ( upArrowPushForce * dt/1000 );
+        }
+        else if (keyCode == '38') 
         {
             //console.log("here");
             //this.protogonistBox.SetUpwardForce ( upArrowPushForce );
