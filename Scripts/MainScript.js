@@ -10,8 +10,18 @@ const MaxForceInAnyDirection = 500;
 const gravity = -400;
 const upArrowPushForce = 250;
 
-const gapBetweenObstacles = 150;
-const distanceBetweenObstacles = 100;
+const verticalGapBetweenObstaclesMin = 120;
+const verticalGapBetweenObstaclesMax = 180;
+
+const distanceBetweenObstaclesMin = 120;
+const distanceBetweenObstaclesMax = 220;
+
+const obstacleWidthMin = 20;
+const obstacleWidthMax = 80;
+
+const birdBoxW = 15;
+const birdBoxH = 15;
+
 const obstacleMovementSpeed = 100;
 const protogonistUpwardForceCoolDownTime = 0.25;
 const protogonistStartPos = { x:30, y:200 };
@@ -30,6 +40,7 @@ let lastUpdate = Date.now();
 let dt = 0;
 var touchVar = null;
 let isGamePaused = false;
+let obstacleID = 1;
 
 
 
@@ -90,6 +101,7 @@ var MyApplicationInstance =
         dt = now - lastUpdate;
         dt = dt * gameSpeed;
         lastUpdate = now;
+        dt = dt / 1000; 
 
         renderer.ClearScreen(); // clearing the screen 
         OnKeyPress(touchVar);   // sending touch events to the game 
@@ -97,7 +109,7 @@ var MyApplicationInstance =
         // updating and rendering the states
         if ( MyApplicationInstance.StateManager != null )
         {
-            MyApplicationInstance.StateManager.Update();
+            MyApplicationInstance.StateManager.Update( dt );
             MyApplicationInstance.StateManager.Render();
         }
     }
@@ -139,6 +151,20 @@ var renderer =
         }
         else
             this.context.fillRect(box.x - box.w/2, box.y - box.h/2, box.w, box.h);
+    },
+    RenderText : function ( textUi )
+    {
+        this.context.fillStyle = textUi.fontColor;
+        this.context.font = textUi.fontType;
+
+        if ( this.InvertYEnabled() )
+        {
+            this.context.fillText( textUi.text, textUi.x * scaleUp, (this.Height() - (textUi.y - textUi.fontHeightInPX/2)) * scaleUp );
+        }
+        else
+            this.context.fillText( textUi.text, textUi.x, (textUi.y - textUi.fontHeightInPX/2));
+
+        this.context.textAlign="center"; 
     },
     RenderButton : function ( button )
     {
@@ -187,28 +213,73 @@ function StartMenuState ()
 
         this.startButton = this.ui.CreateButton ();
         this.startButton.Init ( MyApplicationInstance.GameWidth()/2, 
-                                MyApplicationInstance.GameHeight()/2 , 
-                                200, 50,
+                                MyApplicationInstance.GameHeight() * 2/4 , 
+                                100, 30,
 
-                                (30 * scaleUp) + "px Verdana", "START",
-                                "white", 20,
+                                (15 * scaleUp) + "px Verdana", "START",
+                                "white", 10 /* font height */,
 
                                 "green", "red", "purple", 
 
                                 function() 
                                 { 
+                                    this.StartCountDown();
                                     //alert("On Start clicked"); 
-                                    MyApplicationInstance.StateManager.PushState ( new InGameState() );
-                                },
+                                    //MyApplicationInstance.StateManager.PushState ( new InGameState() );
+                                }.bind ( this ),
 
                                 true );
+
+        this.instructionsTxt = this.ui.CreateText ();
+        this.instructionsTxt.Init ( MyApplicationInstance.GameWidth()/2, 
+                                    MyApplicationInstance.GameHeight() * 1/4 ,
+                                400, 100,
+
+                                (10 * scaleUp) + "px Verdana", "   Tap to make the bird fly :)",
+                                "purple", 7,
+
+                                true );
+
+        this.countDownTxt = this.ui.CreateText ();
+        this.countDownTxt.Init ( MyApplicationInstance.GameWidth()/2, 
+                                MyApplicationInstance.GameHeight() * 2/4 ,
+                            400, 100,
+
+                            (20 * scaleUp) + "px Verdana", "Starts in 3",
+                            "red", 10,
+
+                            false );
+        
+        this.shouldStartCountDown = false;
+        this.totalTime = 3;
+
+        
     }
     this.End = function () 
     {
         
     }
-    this.Update = function ()
+    this.StartCountDown = function () 
     {
+        this.shouldStartCountDown = true;
+        this.startButton.SetVisibility( false );
+        //this.instructionsTxt.SetVisibility ( false );
+        this.countDownTxt.SetVisibility( true );
+
+    }
+    this.Update = function ( dt )
+    {
+        if ( this.shouldStartCountDown )
+        {
+            //console.log(" total time : " + this.totalTime  + " dt " + dt );
+            this.countDownTxt.SetText ( "Starts in " + Math.floor ( this.totalTime ));
+            this.totalTime -= dt;
+            if ( this.totalTime < 0 )
+            {
+                this.shouldStartCountDown = 0;
+                MyApplicationInstance.StateManager.PushState ( new InGameState() );
+            }
+        }
     }
 
     this.Render = function ()
@@ -230,8 +301,10 @@ function StartMenuState ()
 
     this.ui = null;
     this.startButton = null;
+    //this.countDownTxt = null;
+    //this.shouldStartCountDown = false;
+    //this.totalTime = 3;
 }
-
 
 // In - Game 
 function InGameState ()
@@ -248,13 +321,14 @@ function InGameState ()
     this.Start = function() 
     {
         this.protogonistBox = CreateABox();
-        this.protogonistBox.SetAll ( protogonistStartPos.x, protogonistStartPos.y, 30, 30, "red", false );
+        this.protogonistBox.SetAll ( protogonistStartPos.x, protogonistStartPos.y, birdBoxW, birdBoxW, "green", false );
 
         // Creating UI
         {
             this.ui = new UI();
             this.ui.Init ( true );
 
+            // this is a bit of a nonsense since we do not hhave a direct way to create just text
             let scoreBG = this.ui.CreateButton ();
             scoreBG.Init ( MyApplicationInstance.GameWidth() -45, 
                                     MyApplicationInstance.GameHeight() - 20 , 
@@ -263,7 +337,7 @@ function InGameState ()
                                     (25 * scaleUp) + "px Verdana", "",
                                     "black", 15,
 
-                                    "black", "green", "green", 
+                                    "black", "black", "black", 
 
                                     function() 
                                     { 
@@ -279,7 +353,7 @@ function InGameState ()
                                     (25 * scaleUp) + "px Verdana", "0",
                                     "purple", 17.5,
 
-                                    "yellow", "green", "green", 
+                                    "yellow", "yellow", "yellow", 
 
                                     function() 
                                     { 
@@ -289,23 +363,6 @@ function InGameState ()
                                     true );
 
 
-            this.retryButton = this.ui.CreateButton ();
-            this.retryButton.Init ( MyApplicationInstance.GameWidth()/2, 
-                                    MyApplicationInstance.GameHeight()/2 , 
-                                    200, 50,
-    
-                                    (30 * scaleUp) + "px Verdana", "RETRY",
-                                    "white", 20,
-    
-                                    "green", "red", "purple", 
-    
-                                    function() 
-                                    { 
-                                        //alert("On Start clicked"); 
-                                        MyApplicationInstance.Restart();
-                                    },
-    
-                                    false );
         }
 
     }
@@ -326,10 +383,10 @@ function InGameState ()
                 let box = this.protogonistBox;
                 if ( box.IsAffectedByGravity() )
                 {
-                    box.IncreaseForce ( gravity * dt/1000 );
+                    box.IncreaseForce ( gravity * dt );
                     if ( box.y > 0 && box.y < MyApplicationInstance.GameHeight() )
                     {
-                        box.SetY( box.y + box.force * dt/1000 );
+                        box.SetY( box.y + box.force * dt );
                     }
                     
                 }
@@ -339,7 +396,7 @@ function InGameState ()
             for( let i = 0; i < this.obstacles.length; i++ )
             {
                 this.obstacles[i].Update();
-                this.obstacles[i].Move ( dt/1000 );
+                this.obstacles[i].Move ( dt );
             }
 
             if ( this.DidIJustLose() )
@@ -350,29 +407,32 @@ function InGameState ()
 
         // Create more obstacles if needed
         {
-            let doINeedMoreObstacles = false;
             let positionX = 0;
             
-            if ( this.obstacles.length == 0 )
+            //if ( !doINeedMoreObstacles && this.obstacles.length > 0 )
             {
-                doINeedMoreObstacles = true;
-                positionX = MyApplicationInstance.GameWidth() + 20/* buffer*/;
-            }
-
-            if ( !doINeedMoreObstacles && this.obstacles.length > 0 )
-            {
-                if ( ( MyApplicationInstance.GameWidth() - this.obstacles[this.obstacles.length - 1].aboveObstacle.x ) > 
-                    distanceBetweenObstacles )
+                if (  this.obstacles.length == 0 || this.obstacles[this.obstacles.length - 1].aboveObstacle.x < (MyApplicationInstance.GameWidth() * 2) )
                 {
-                    doINeedMoreObstacles = true;
-                    positionX = this.obstacles[this.obstacles.length - 1].aboveObstacle.x + 
-                                    distanceBetweenObstacles + 20 /* buffer */;
+                    while ( this.obstacles.length == 0 || this.obstacles[this.obstacles.length - 1].aboveObstacle.x < (MyApplicationInstance.GameWidth() * 4) )
+                    {
+                        if ( this.obstacles.length == 0 )
+                            positionX = MyApplicationInstance.GameWidth() + 20/* buffer*/;
+                        else 
+                            positionX = this.obstacles[this.obstacles.length - 1].aboveObstacle.x + this.obstacles[this.obstacles.length - 1].aboveObstacle.w/2 + 
+                                        getRandomInt( distanceBetweenObstaclesMin, distanceBetweenObstaclesMax );
+
+                        //if ( doINeedMoreObstacles ) 
+                        {
+                            var obstacleW = getRandomInt ( obstacleWidthMin, obstacleWidthMax );
+                            var obstacleVerticalGap = getRandomInt ( verticalGapBetweenObstaclesMin, verticalGapBetweenObstaclesMax );
+                            
+                            console.log ( "New obstance is created with ID " + obstacleID + " pos " + positionX + " w " + obstacleW + " vg " + obstacleVerticalGap);
+                            this.CreateAnObstacle ( this.obstacleID, positionX, obstacleW, obstacleVerticalGap );
+                            obstacleID ++;
+                        }
+                            
+                    }
                 }
-            }
-            if ( doINeedMoreObstacles ) 
-            {
-                this.CreateAnObstacle ( positionX, gapBetweenObstacles );
-                this.score ++;
             }
         }
 
@@ -380,8 +440,9 @@ function InGameState ()
         {
             for( let i = 0; i < this.obstacles.length; i++ )
             {
-                if ( ( this.obstacles[i].aboveObstacle.x + 20 /*buffer*/ ) < 0 )
+                if ( ( this.obstacles[i].aboveObstacle.x ) < -50 )
                 {
+                    this.score ++;
                     this.DestroyAnObstacle ( this.obstacles[i]);
                     break;  
                 }
@@ -470,7 +531,8 @@ function InGameState ()
 
         console.log("gameOver");
         this.gameOver = true;
-        this.retryButton.SetVisibility ( true );
+        MyApplicationInstance.StateManager.PushState ( new EndGameMenuState( this.score ) );
+        //this.retryButton.SetVisibility ( true );
     }
 
     this.OnMouseDown = function( x, y )
@@ -514,9 +576,9 @@ function InGameState ()
 
 
 
-    this.CreateAnObstacle = function( positionX, gap )
+    this.CreateAnObstacle = function( id, positionX, width, verticalGap )
     {
-        let newObstacle = new Obstacle ( positionX, gap );
+        let newObstacle = new Obstacle ( id, positionX, width, verticalGap );
         this.obstacles.push ( newObstacle );
         return newObstacle;
     }
@@ -530,6 +592,141 @@ function InGameState ()
             //console.log ("After Splicing:" + index + " " + obstacles.length);
         }
     }
+}
+
+// Main Menu 
+
+function EndGameMenuState ( score )
+{
+    this.Start = function() 
+    {
+        this.ui = new UI();
+        this.ui.Init ( true );
+
+
+        this.scoreBG = this.ui.CreateButton ();
+        this.scoreBG.Init ( MyApplicationInstance.GameWidth() / 2, 
+                                    MyApplicationInstance.GameHeight()/2 , 
+                                    90, 40,
+
+                                    (25 * scaleUp) + "px Verdana", "",
+                                    "black", 15,
+
+                                    "black", "black", "black", 
+
+                                    function() 
+                                    { 
+                                        //no action here. this is intentional
+                                    },
+
+                                    false );
+            this.scoreTxt = this.ui.CreateButton ();
+            this.scoreTxt.Init ( MyApplicationInstance.GameWidth()/2, 
+                                    MyApplicationInstance.GameHeight()/2, 
+                                    85, 35,
+
+                                    (25 * scaleUp) + "px Verdana", "0",
+                                    "purple", 17.5,
+
+                                    "yellow", "yellow", "yellow", 
+
+                                    function() 
+                                    { 
+                                        //no action here. this is intentional
+                                    },
+
+                                    false );
+
+
+            this.retryButton = this.ui.CreateButton ();
+            this.retryButton.Init ( MyApplicationInstance.GameWidth()*1/2, 
+                                    MyApplicationInstance.GameHeight()*1/4 , 
+                                    100, 25,
+    
+                                    (15 * scaleUp) + "px Verdana", "RETRY",
+                                    "white", 10,
+    
+                                    "green", "red", "purple", 
+    
+                                    function() 
+                                    { 
+                                        //alert("On Start clicked"); 
+                                        MyApplicationInstance.Restart();
+                                    },
+    
+                                    false );
+
+        this.gameOverTxt = this.ui.CreateText ();
+        this.gameOverTxt.Init ( MyApplicationInstance.GameWidth()/2, 
+                                MyApplicationInstance.GameHeight() * 2/4 ,
+                            400, 100,
+
+                            (20 * scaleUp) + "px Verdana", "Game Over !",
+                            "red", 10,
+
+                            false );
+        
+        this.StartCountDown();
+        this.totalTime = 3;
+    }
+    this.End = function () 
+    {
+        
+    }
+    this.StartCountDown = function () 
+    {
+        this.shouldStartCountDown = true;
+        //this.startButton.SetVisibility( false );
+        //this.instructionsTxt.SetVisibility ( false );
+        this.gameOverTxt.SetVisibility( true );
+
+    }
+    this.ShowScore = function () 
+    {
+        this.scoreTxt.SetText ( this.totalScore );
+        this.gameOverTxt.SetVisibility ( false );
+        this.retryButton.SetVisibility ( true );
+        this.scoreBG.SetVisibility ( true );
+        this.scoreTxt.SetVisibility ( true );
+    }
+    this.Update = function ( dt )
+    {
+        if ( this.shouldStartCountDown )
+        {
+            //console.log(" total time : " + this.totalTime  + " dt " + dt );
+            //this.gameOverTxt.SetText ( "Starts in " + Math.floor ( this.totalTime ));
+            this.totalTime -= dt;
+            if ( this.totalTime < 0 )
+            {
+                this.shouldStartCountDown = false;
+                this.ShowScore();
+            }
+        }
+    }
+
+    this.Render = function ()
+    {
+        this.ui.Render();
+    }
+
+    this.OnMouseDown = function( x, y )
+    {
+        this.ui.OnMouseDown ( x, y );
+    }
+    this.OnMouseUp = function( x, y )
+    {
+        this.ui.OnMouseUp ( x, y );
+    }
+    this.OnKeyPress = function ( keyCode )
+    {
+    }
+
+    this.totalScore = score;
+    this.ui = null;
+    this.startButton = null;
+    //this.countDownTxt = null;
+    //this.shouldStartCountDown = false;
+    //this.totalTime = 3;
 }
 
 
@@ -657,7 +854,7 @@ function Box ( )
     this.Update  = function ( )
     {
         if ( this.upwardForceCooldown > 0 )
-            this.upwardForceCooldown -= dt/1000;
+            this.upwardForceCooldown -= dt;
     }
 
     this.SetUpwardForce = function ( force ) 
@@ -675,25 +872,28 @@ function Box ( )
 
 }
 
-function Obstacle ( positionX, minGap)
+function Obstacle ( id, positionX, width, verticalGap)
 {
+    this.id = id;
+
     this.aboveObstacle = CreateABox();
     this.belowObstacle = CreateABox();
 
-    let gap = getRandomArbitrary ( minGap, minGap /*MyApplicationInstance.GameHeight()*/ );
-
+    //let gapBetweenTopBarAndBottomBar = verticalGap;
+    var randomColor = getRandomInt( 20, 180 );
     
-    this.aboveObstacle.w = 20;
-    this.aboveObstacle.h = getRandomArbitrary ( 0, MyApplicationInstance.GameHeight() - gap );
+    this.aboveObstacle.w = width;
+    this.aboveObstacle.h = getRandomArbitrary ( 0, MyApplicationInstance.GameHeight() - verticalGap );
     this.aboveObstacle.y = MyApplicationInstance.GameHeight() - ( this.aboveObstacle.h / 2 );
     this.aboveObstacle.x = positionX;
-    this.aboveObstacle.color = "grey";
+    
+    this.aboveObstacle.color = rgbToHex( randomColor, randomColor, randomColor );
 
-    this.belowObstacle.w = 20;
-    this.belowObstacle.h = MyApplicationInstance.GameHeight() - gap - this.aboveObstacle.h;
+    this.belowObstacle.w = width;
+    this.belowObstacle.h = MyApplicationInstance.GameHeight() - verticalGap - this.aboveObstacle.h;
     this.belowObstacle.y = this.belowObstacle.h/2;
     this.belowObstacle.x = positionX;
-    this.belowObstacle.color = "grey";
+    this.belowObstacle.color = rgbToHex( randomColor, randomColor, randomColor );
     this.Update = function () 
     {
         this.aboveObstacle.Update ();
@@ -704,8 +904,8 @@ function Obstacle ( positionX, minGap)
 
     this.Move = function ( dt )
     {
-        this.aboveObstacle.x -= this.Speed() * dt;
-        this.belowObstacle.x -= this.Speed() * dt;
+        this.aboveObstacle.x -= this.Speed() * dt ;
+        this.belowObstacle.x -= this.Speed() * dt ;
     }
 }
 
@@ -743,7 +943,14 @@ function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
 
+function rgbToHex(r, g, b) {
+    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+}
 
 // //Function to check whether a point is inside a rectangle
 // function isInside(pos, rect){

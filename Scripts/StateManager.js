@@ -31,7 +31,7 @@ function StateManager ()
         return this.states[ this.states.length - 1 ];
     }
 
-    this.Update  = function ()
+    this.Update  = function ( dt )
     {
         if ( this.popState )
         {
@@ -50,7 +50,7 @@ function StateManager ()
         }
 
         if ( this.CurrentState() != null )
-            this.CurrentState().Update ();
+            this.CurrentState().Update ( dt );
     }
     this.Render  = function ()
     {
